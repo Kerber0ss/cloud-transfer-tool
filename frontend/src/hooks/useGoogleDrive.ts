@@ -37,7 +37,8 @@ export function useGoogleDrive() {
   }, [checkStatus])
 
   const connect = useCallback(() => {
-    window.location.href = '/api/auth/google'
+    const token = localStorage.getItem('token')
+    window.location.href = `/api/auth/google?token=${token}`
   }, [])
 
   const disconnect = useCallback(async () => {

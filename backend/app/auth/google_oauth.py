@@ -92,9 +92,25 @@ async def get_google_credentials(username: str) -> Credentials | None:
     return creds
 
 
+def _verify_token(token: str) -> str:
+    from jose import JWTError, jwt as jose_jwt
+
+    try:
+        payload = jose_jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
 @router.get("")
-async def google_auth_redirect(current_user: str = Depends(get_current_user)):
-    """Redirect user to Google OAuth2 consent screen."""
+async def google_auth_redirect(token: str):
+    """Redirect user to Google OAuth2 consent screen.
+    Token is passed as query param because browser redirect can't send Authorization header.
+    """
+    current_user = _verify_token(token)
     if not settings.google_client_id or not settings.google_client_secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
