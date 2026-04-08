@@ -32,92 +32,72 @@ class MailRuConnector(BaseConnector):
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             }
         ) as client:
-            # 1) Visit public page to establish session cookies
+            # Visit page first — cookies from this response are required for all API calls
             page_resp = await client.get(url)
             if page_resp.status_code == 404:
                 raise ConnectorError(f"File not found: {url}")
             if page_resp.status_code >= 400:
                 raise ConnectorError(f"Cannot access file (HTTP {page_resp.status_code}): {url}")
 
-            html = page_resp.text
+            # Dispatcher gives us the download server (works with cookies, no CSRF needed)
+            disp_resp = await client.get(f"{MAIL_RU_API}/dispatcher")
+            if disp_resp.status_code != 200:
+                raise ConnectorError(f"Cannot get download server for: {url}")
 
-            # 2) Extract file metadata from embedded JSON in HTML
-            filename = None
-            size_bytes = None
+            disp_body = disp_resp.json().get("body", {})
+            weblink_get = disp_body.get("weblink_get", [])
+            if not weblink_get:
+                raise ConnectorError(f"No download server available for: {url}")
 
-            name_match = re.search(r'"name"\s*:\s*"([^"]{1,500})"', html)
-            if name_match:
-                filename = name_match.group(1)
+            download_base = weblink_get[0].get("url", "").rstrip("/")
 
-            size_match = re.search(r'"size"\s*:\s*(\d+)', html)
-            if size_match:
-                size_bytes = int(size_match.group(1))
+            # File/folder metadata
+            file_resp = await client.get(
+                f"{MAIL_RU_API}/file",
+                params={"weblink": weblink},
+            )
+            if file_resp.status_code == 404:
+                raise ConnectorError(f"File not found: {url}")
+            if file_resp.status_code != 200:
+                raise ConnectorError(f"Cannot get file info (HTTP {file_resp.status_code}): {url}")
 
-            # 3) Get CSRF token (now with cookies from step 1)
-            csrf_token = ""
+            body = file_resp.json().get("body", {})
+            item_type = body.get("type")
+            filename = body.get("name")
+            size_bytes = body.get("size")
 
-            csrf_html_match = re.search(r'"csrf"\s*:\s*"([^"]+)"', html)
-            if csrf_html_match:
-                csrf_token = csrf_html_match.group(1)
-
-            if not csrf_token:
-                try:
-                    csrf_resp = await client.get(f"{MAIL_RU_API}/tokens/csrf")
-                    if csrf_resp.status_code == 200:
-                        csrf_token = csrf_resp.json().get("body", {}).get("token", "")
-                except Exception as e:
-                    logger.warning(f"CSRF API failed: {e}")
-
-            if not csrf_token:
-                raise ConnectorError(f"Cannot authenticate with cloud.mail.ru for: {url}")
-
-            # 4) Get file info via API
-            try:
-                file_resp = await client.get(
-                    f"{MAIL_RU_API}/file",
-                    params={"weblink": weblink, "token": csrf_token},
+            # Folders: resolve to the single file inside
+            if item_type == "folder":
+                folder_resp = await client.get(
+                    f"{MAIL_RU_API}/folder",
+                    params={"weblink": weblink},
                 )
-                if file_resp.status_code == 200:
-                    body = file_resp.json().get("body", {})
-                    if not filename:
-                        filename = body.get("name")
-                    if size_bytes is None:
-                        size_bytes = body.get("size")
-                    if body.get("type") == "folder":
-                        raise ConnectorError(
-                            "This link points to a folder. Please share a direct file link."
-                        )
-                elif file_resp.status_code == 404:
-                    raise ConnectorError(f"File not found: {url}")
-            except ConnectorError:
-                raise
-            except Exception as e:
-                logger.warning(f"File info API failed: {e}")
+                if folder_resp.status_code != 200:
+                    raise ConnectorError(f"Cannot list folder contents: {url}")
 
-            # 5) Get download URL via dispatcher
-            direct_url = None
-            try:
-                disp_resp = await client.get(
-                    f"{MAIL_RU_API}/dispatcher",
-                    params={"token": csrf_token},
-                )
-                if disp_resp.status_code == 200:
-                    disp_body = disp_resp.json().get("body", {})
-                    weblink_get = disp_body.get("weblink_get", [])
-                    if weblink_get:
-                        base = weblink_get[0].get("url", "").rstrip("/")
-                        direct_url = f"{base}/{weblink}"
-            except Exception as e:
-                logger.warning(f"Dispatcher API failed: {e}")
+                items = folder_resp.json().get("body", {}).get("list", [])
+                files = [f for f in items if f.get("type") == "file"]
 
-            if not direct_url:
-                raise ConnectorError(f"Failed to resolve download URL for: {url}")
+                if not files:
+                    raise ConnectorError("Folder is empty")
+                if len(files) > 1:
+                    raise ConnectorError(
+                        f"Folder contains {len(files)} files. "
+                        "Please share a direct link to a single file."
+                    )
+
+                file_item = files[0]
+                filename = file_item.get("name", filename)
+                size_bytes = file_item.get("size")
+                file_weblink = file_item.get("weblink", f"{weblink}/{filename}")
+                direct_url = f"{download_base}/{file_weblink}"
+            else:
+                direct_url = f"{download_base}/{weblink}"
 
             if not filename:
                 parts = weblink.split("/")
                 filename = parts[-1] if parts else "download"
 
-            # 6) Verify download URL and get content-type
             content_type = "application/octet-stream"
             try:
                 head_resp = await client.head(direct_url)
@@ -125,13 +105,14 @@ class MailRuConnector(BaseConnector):
                     head_resp = await client.get(
                         direct_url, headers={"Range": "bytes=0-0"}
                     )
-                ct = head_resp.headers.get("content-type", "").split(";")[0]
-                if ct and ct != "text/html":
-                    content_type = ct
-                if size_bytes is None:
-                    cl = head_resp.headers.get("content-length")
-                    if cl:
-                        size_bytes = int(cl)
+                if head_resp.status_code < 400:
+                    ct = head_resp.headers.get("content-type", "").split(";")[0]
+                    if ct and ct != "text/html":
+                        content_type = ct
+                    if size_bytes is None:
+                        cl = head_resp.headers.get("content-length")
+                        if cl:
+                            size_bytes = int(cl)
             except Exception as e:
                 logger.warning(f"Could not verify direct URL: {e}")
 
