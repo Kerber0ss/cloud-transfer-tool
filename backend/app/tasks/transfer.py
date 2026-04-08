@@ -120,9 +120,19 @@ def transfer_file(
 
     except ConnectorError as e:
         logger.error(f"Connector error for task {task_id}: {e}")
-        self.update_state(state="FAILURE", meta={"error": str(e), "status": "FAILED"})
-        raise
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "FAILED", "error": str(e), "progress_pct": 0,
+                  "bytes_transferred": 0, "total_bytes": None,
+                  "filename": filename or "unknown", "gdrive_folder_name": gdrive_folder_name},
+        )
+        return {"status": "FAILED", "error": str(e)}
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}", exc_info=True)
-        self.update_state(state="FAILURE", meta={"error": str(e), "status": "FAILED"})
-        raise
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "FAILED", "error": str(e), "progress_pct": 0,
+                  "bytes_transferred": 0, "total_bytes": None,
+                  "filename": filename or "unknown", "gdrive_folder_name": gdrive_folder_name},
+        )
+        return {"status": "FAILED", "error": str(e)}
