@@ -7,6 +7,14 @@ import ProtectedRoute from './components/ProtectedRoute'
 
 const queryClient = new QueryClient()
 
+function initTheme() {
+  const stored = localStorage.getItem('cloud_transfer_theme')
+  if (stored !== 'light') {
+    document.documentElement.classList.add('dark')
+  }
+}
+initTheme()
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -28,9 +36,9 @@ function App() {
         position="top-right"
         toastOptions={{
           style: {
-            background: 'hsl(222.2 84% 4.9%)',
-            color: 'hsl(210 40% 98%)',
-            border: '1px solid hsl(217.2 32.6% 17.5%)',
+            background: 'hsl(var(--card))',
+            color: 'hsl(var(--card-foreground))',
+            border: '1px solid hsl(var(--border))',
           },
         }}
       />

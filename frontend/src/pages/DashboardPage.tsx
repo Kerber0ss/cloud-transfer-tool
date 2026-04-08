@@ -7,6 +7,7 @@ import { logout } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { useGoogleDrive } from '@/hooks/useGoogleDrive'
 import api from '@/lib/api'
+import ThemeToggle from '@/components/ThemeToggle'
 
 async function fetchTasks() {
   const { data } = await api.get('/api/tasks/')
@@ -47,6 +48,7 @@ export default function DashboardPage() {
             Google Drive
           </div>
           <GoogleDriveConnect />
+          <ThemeToggle />
           <Button
             variant="ghost"
             size="sm"
