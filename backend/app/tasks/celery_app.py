@@ -5,6 +5,7 @@ celery_app = Celery(
     "cloud_transfer",
     broker=settings.redis_url,
     backend=settings.redis_url,
+    include=["app.tasks.transfer"],
 )
 
 celery_app.conf.update(
@@ -15,8 +16,6 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_acks_late=True,
-    result_expires=604800,  # 7 days
+    result_expires=604800,
     worker_prefetch_multiplier=1,
 )
-
-celery_app.autodiscover_tasks(["app.tasks"])
