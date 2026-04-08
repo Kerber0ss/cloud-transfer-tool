@@ -75,9 +75,11 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-foreground">Transfer History</h2>
-              {hasRunning && (
-                <span className="text-xs text-blue-400 animate-pulse">● Live updating</span>
-              )}
+              <div className="flex items-center gap-3">
+                {hasRunning && (
+                  <span className="text-xs text-blue-400 animate-pulse">● Live updating</span>
+                )}
+              </div>
             </div>
             <TaskList tasks={tasks} onRefresh={() => refetch()} />
           </div>

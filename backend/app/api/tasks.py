@@ -85,6 +85,17 @@ async def list_tasks(current_user: str = Depends(get_current_user)):
     return tasks
 
 
+@router.delete("/")
+async def clear_history(current_user: str = Depends(get_current_user)):
+    r = get_redis()
+    task_ids = r.lrange(f"task_list:{current_user}", 0, -1)
+    for task_id in task_ids:
+        r.delete(f"task_meta:{task_id}")
+        r.delete(f"celery-task-meta-{task_id}")
+    r.delete(f"task_list:{current_user}")
+    return {"deleted": len(task_ids)}
+
+
 @router.get("/{task_id}/status", response_model=TaskProgressUpdate)
 async def task_status(task_id: str, current_user: str = Depends(get_current_user)):
     """Return current status of a task."""

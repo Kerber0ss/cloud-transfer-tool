@@ -54,6 +54,16 @@ export default function TaskList({ tasks, onRefresh }: TaskListProps) {
     }
   }
 
+  async function clearHistory() {
+    try {
+      await api.delete('/api/tasks/')
+      toast.success('History cleared')
+      onRefresh()
+    } catch {
+      toast.error('Failed to clear history')
+    }
+  }
+
   if (tasks.length === 0) {
     return (
       <div className="text-center py-16 border border-border rounded-lg">
@@ -65,6 +75,16 @@ export default function TaskList({ tasks, onRefresh }: TaskListProps) {
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-destructive hover:text-destructive"
+          onClick={clearHistory}
+        >
+          Clear History
+        </Button>
+      </div>
       {tasks.map((task) => (
         <div key={task.task_id} className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-start justify-between gap-3 mb-2">
