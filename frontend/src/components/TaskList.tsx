@@ -54,6 +54,16 @@ export default function TaskList({ tasks, onRefresh }: TaskListProps) {
     }
   }
 
+  async function deleteTask(taskId: string) {
+    try {
+      await api.delete(`/api/tasks/${taskId}`)
+      toast.success('Task removed')
+      onRefresh()
+    } catch {
+      toast.error('Failed to remove task')
+    }
+  }
+
   async function clearHistory() {
     try {
       await api.delete('/api/tasks/')
@@ -115,6 +125,16 @@ export default function TaskList({ tasks, onRefresh }: TaskListProps) {
                 onClick={() => cancelTask(task.task_id)}
               >
                 Cancel
+              </Button>
+            )}
+            {(task.status === 'SUCCESS' || task.status === 'FAILED' || task.status === 'CANCELLED') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-destructive flex-shrink-0"
+                onClick={() => deleteTask(task.task_id)}
+              >
+                ✕
               </Button>
             )}
           </div>

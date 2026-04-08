@@ -67,6 +67,16 @@ async def list_tasks(current_user: str = Depends(get_current_user)):
             progress = get_task_progress(task_id)
             meta_raw = r.get(f"task_meta:{task_id}")
             meta = json.loads(meta_raw) if meta_raw else {}
+
+            result = AsyncResult(task_id, app=celery_app)
+            celery_filename = None
+            if isinstance(result.info, dict):
+                celery_filename = result.info.get("filename")
+            if isinstance(result.result, dict):
+                celery_filename = result.result.get("filename") or celery_filename
+
+            filename = celery_filename or meta.get("filename") or "Unknown file"
+
             tasks.append({
                 "task_id": task_id,
                 "status": progress.status,
@@ -74,7 +84,7 @@ async def list_tasks(current_user: str = Depends(get_current_user)):
                 "bytes_transferred": progress.bytes_transferred,
                 "total_bytes": progress.total_bytes,
                 "error": progress.error,
-                "filename": meta.get("filename", "unknown"),
+                "filename": filename,
                 "source_url": meta.get("source_url", ""),
                 "provider": meta.get("provider", ""),
                 "gdrive_folder_name": meta.get("gdrive_folder_name", ""),
@@ -94,6 +104,15 @@ async def clear_history(current_user: str = Depends(get_current_user)):
         r.delete(f"celery-task-meta-{task_id}")
     r.delete(f"task_list:{current_user}")
     return {"deleted": len(task_ids)}
+
+
+@router.delete("/{task_id}")
+async def delete_task(task_id: str, current_user: str = Depends(get_current_user)):
+    r = get_redis()
+    r.lrem(f"task_list:{current_user}", 0, task_id)
+    r.delete(f"task_meta:{task_id}")
+    r.delete(f"celery-task-meta-{task_id}")
+    return {"deleted": task_id}
 
 
 @router.get("/{task_id}/status", response_model=TaskProgressUpdate)
