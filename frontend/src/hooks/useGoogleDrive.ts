@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '@/lib/api'
+import { getToken } from '@/lib/auth'
 
 interface GoogleDriveAccount {
   connected: boolean
@@ -37,7 +38,7 @@ export function useGoogleDrive() {
   }, [checkStatus])
 
   const connect = useCallback(() => {
-    const token = localStorage.getItem('token')
+    const token = getToken()
     window.location.href = `/api/auth/google?token=${token}`
   }, [])
 
