@@ -9,7 +9,7 @@ import { useGoogleDrive } from '@/hooks/useGoogleDrive'
 import api from '@/lib/api'
 
 async function fetchTasks() {
-  const { data } = await api.get('/api/tasks')
+  const { data } = await api.get('/api/tasks/')
   return data
 }
 
