@@ -57,9 +57,8 @@ def get_task_progress(task_id: str) -> TaskProgressUpdate:
     )
 
 
-@router.get("", response_model=list)
+@router.get("/", response_model=list)
 async def list_tasks(current_user: str = Depends(get_current_user)):
-    """Return list of task IDs for current user."""
     r = get_redis()
     task_ids = r.lrange(f"task_list:{current_user}", 0, -1)
     tasks = []
