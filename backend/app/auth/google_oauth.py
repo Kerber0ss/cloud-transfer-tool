@@ -170,10 +170,15 @@ async def google_auth_callback(code: str, state: str):
 
 @router.get("/status", response_model=GoogleDriveAccount)
 async def google_status(current_user: str = Depends(get_current_user)):
-    """Return Google Drive connection status for current user."""
     token_data = load_tokens_from_redis(current_user)
     if not token_data:
         return GoogleDriveAccount(connected=False)
+
+    creds = await get_google_credentials(current_user)
+    if not creds:
+        delete_tokens_from_redis(current_user)
+        return GoogleDriveAccount(connected=False, expired=True)
+
     return GoogleDriveAccount(
         connected=True,
         email=token_data.get("email"),

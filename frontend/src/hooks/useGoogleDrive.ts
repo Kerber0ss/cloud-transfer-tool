@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '@/lib/api'
 import { getToken } from '@/lib/auth'
+import toast from 'react-hot-toast'
 
 interface GoogleDriveAccount {
   connected: boolean
   email?: string | null
   name?: string | null
+  expired?: boolean | null
 }
 
 export function useGoogleDrive() {
@@ -16,6 +18,9 @@ export function useGoogleDrive() {
     try {
       const response = await api.get('/api/auth/google/status')
       setAccount(response.data)
+      if (response.data.expired) {
+        toast.error('Google Drive session expired. Please reconnect.', { id: 'gdrive-expired' })
+      }
     } catch {
       setAccount({ connected: false })
     } finally {

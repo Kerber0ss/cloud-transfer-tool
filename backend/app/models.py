@@ -52,6 +52,7 @@ class GoogleDriveAccount(BaseModel):
     connected: bool
     email: Optional[str] = None
     name: Optional[str] = None
+    expired: Optional[bool] = None
 
 
 class LoginRequest(BaseModel):
